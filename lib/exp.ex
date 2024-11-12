@@ -3,19 +3,6 @@ defmodule Exp do
   Documentation for `Exp`.
   """
 
-  @doc """
-  Hello world.
-
-  ## Examples
-
-      iex> Exp.hello()
-      :world
-
-  """
-  def hello do
-    :world
-  end
-
   # Allowed infix operators
   # \\, <-, |, ~>>, <<~, ~>, <~, <~>, <|>, <<<, >>>, |||, &&&, and ^^^.
   defmodule Parser do
@@ -96,6 +83,34 @@ defmodule Exp do
     def string(s) do
       [c | cs] = String.split_at(s, 1)
       char(c) ~>> fn _ -> string(cs) end ~>> fn _ -> return(s) end
+    end
+
+    def many(p) do
+      many1(p) <|> return([])
+    end
+
+    def many1(p) do
+      p.() ~>> fn a -> many(p) ~>> fn as -> return([a | as]) end end
+    end
+
+    def sepby(p, p_sep) do
+      sepby1(p, p_sep) <|> return([])
+    end
+
+    def sepby1(p, p_sep) do
+      p.() ~>> fn a -> many(p_sep ~>> fn _ -> p.() end) ~>> fn as -> return([a | as]) end end
+    end
+
+    def chain(p, op, a) do
+      chain1(p, op) <|> return(a)
+    end
+
+    def chain1(p, op) do
+      p.() ~>> fn a -> rest(p, op, a) end
+    end
+
+    defp rest(p, op, a) do
+      op.() ~>> fn f -> p.() ~>> fn b -> rest(p, op, f.(a, b)) <|> return(a) end end
     end
   end
 end
