@@ -73,5 +73,29 @@ defmodule Exp do
     def p <|> q do
       or_(p, q)
     end
+
+    def sat(p) do
+      item()
+      ~>> fn c ->
+        if p.(c) do
+          return(c)
+        else
+          zero()
+        end
+      end
+    end
+
+    def char(c) do
+      sat(fn c2 -> c == c2 end)
+    end
+
+    def string("") do
+      return("")
+    end
+
+    def string(s) do
+      [c | cs] = String.split_at(s, 1)
+      char(c) ~>> fn _ -> string(cs) end ~>> fn _ -> return(s) end
+    end
   end
 end
