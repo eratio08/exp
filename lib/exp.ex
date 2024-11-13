@@ -335,5 +335,29 @@ defmodule Exp do
     def token(p) do
       p ~>> fn a -> space() ~>> fn _ -> return(a) end end
     end
+
+    @doc ~S"""
+    Lexical Parser that matches the given string `s` followed by whitespace.
+
+    ## Example
+    iex> import Exp.Parser
+    iex> symb("abc").("abc\n")
+    [{"abc", ""}]
+    """
+    def symb(s) do
+      token(string(s))
+    end
+
+    @doc ~S"""
+    Run parser `p` on input `input`.
+
+    ## Example
+    iex> import Exp.Parser
+    iex> apply_(symb("abc"), ("abc\n"))
+    [{"abc", ""}]
+    """
+    def apply_(p, input) do
+      p.(input)
+    end
   end
 end
