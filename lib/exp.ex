@@ -144,6 +144,8 @@ defmodule Exp do
     iex> import Exp.Parser
     iex> (zero() ||| return("d")).("abc")
     [{"d","abc"}]
+    iex> (char("a") ||| return("d")).("abc")
+    [{"a","bc"}]
     """
     def p ||| q do
       or_(p, q)
@@ -193,43 +195,124 @@ defmodule Exp do
     [{"ab","c"}]
     """
     def string(s) do
-      [c | cs] = String.split_at(s, 1)
-      char(c) ~>> fn _ -> string(cs) end ~>> fn _ -> return(s) end
+      {c, cs} = String.split_at(s, 1)
+      char(c) ~>> fn a -> string(cs) ~>> fn as -> return(List.to_string([a | as])) end end
     end
 
+    @doc ~S"""
+    Combinator, matches parser `p` 0 or many times resulting in a list of matches.
+
+    ## Example
+    iex> import Exp.Parser
+    iex> many(char("a")).("aac")
+    [{["a", "a"], "c"}]
+    iex> many(char("a")).("caa")
+    [{[], "caa"}]
+    """
     def many(p) do
       many1(p) ||| return([])
     end
 
+    @doc ~S"""
+    Combinator, matches parser `p` 1 or many times resulting in a list of matches.
+
+    ## Example
+    iex> import Exp.Parser
+    iex> many1(char("a")).("aac")
+    [{["a", "a"], "c"}]
+    iex> many1(char("a")).("caa")
+    []
+    """
     def many1(p) do
-      fn cs ->
-        p.(cs) ~>> fn a -> many(p) ~>> fn as -> return([a | as]) end end
-      end
+      p ~>> fn a -> many(p) ~>> fn as -> return([a | as]) end end
     end
 
+    @doc ~S"""
+    Combinator, matches parser `p` 0 or many times separated by parser `p_sep`, returning only matches of `p`.
+
+    ## Example
+    iex> import Exp.Parser
+    iex> sepby(item(), char(",")).("a,a,c")
+    [{["a", "a", "c"], ""}]
+    iex> sepby(item(), char(",")).("aa,a,c")
+    [{["a"], "a,a,c"}]
+    iex> sepby(char("z"), char(",")).("a,a,c")
+    [{[], "a,a,c"}]
+    """
     def sepby(p, p_sep) do
       sepby1(p, p_sep) ||| return([])
     end
 
+    @doc ~S"""
+    Combinator, matches parser `p` 1 or many times separated by parser `p_sep`, returning only matches of `p`.
+
+    ## Example
+    iex> import Exp.Parser
+    iex> sepby1(item(), char(",")).("a,a,c")
+    [{["a", "a", "c"], ""}]
+    iex> sepby1(char("z"), char(",")).("a,a,c")
+    []
+    """
     def sepby1(p, p_sep) do
-      fn cs ->
-        p.(cs) ~>> fn a -> many(p_sep ~>> fn _ -> p.() end) ~>> fn as -> return([a | as]) end end
-      end
+      p ~>> fn a -> many(p_sep ~>> fn _ -> p end) ~>> fn as -> return([a | as]) end end
     end
 
+    @doc ~S"""
+    Combinator, matches parser `p` 0 or many times separated by parser `op`, will apply the result of `p` to the result of `op`.
+
+    ## Example
+    iex> import Exp.Parser
+    iex> number_one_p = char("1") ~>> fn x -> return(String.to_integer(x)) end
+    iex> addition_p = char("+") ~>> fn _ -> return(fn a, b -> a + b end) end
+    iex> chain(number_one_p, addition_p, 0).("1+1+1")
+    [{3, ""}]
+    iex> chain(number_one_p, addition_p, 0).("2+1+1")
+    [{0, "2+1+1"}]
+    """
     def chain(p, op, a) do
       chain1(p, op) ||| return(a)
     end
 
+    @doc ~S"""
+    Combinator, matches parser `p` 1 or many times separated by parser `op`, will apply the result of `p` to the result of `op`.
+
+    ## Example
+    iex> import Exp.Parser
+    iex> number_one_p = char("1") ~>> fn x -> return(String.to_integer(x)) end
+    iex> addition_p = char("+") ~>> fn _ -> return(fn a, b -> a + b end) end
+    iex> chain(number_one_p, addition_p, 0).("1+1+1")
+    [{3, ""}]
+    """
     def chain1(p, op) do
-      fn cs ->
-        p.(cs) ~>> fn a -> rest(p, op, a) end
-      end
+      p ~>> fn a -> rest(p, op, a) end
     end
 
     defp rest(p, op, a) do
-      fn cs ->
-        op.(cs) ~>> fn f -> p.() ~>> fn b -> rest(p, op, f.(a, b)) ||| return(a) end end
+      op ~>> fn f -> p ~>> fn b -> rest(p, op, f.(a, b)) end end ||| return(a)
+    end
+
+    @doc ~S"""
+    Parser that matches whitespace.
+
+    ## Example
+    iex> import Exp.Parser
+    iex> space().(" abc")
+    [{" ", "abc"}]
+    """
+    def space() do
+      sat(&is_space/1)
+    end
+
+    defp is_space(c) do
+      case c do
+        " " ->
+          true
+
+        "\t" ->
+          true
+
+        _ ->
+          false
       end
     end
   end
