@@ -292,15 +292,17 @@ defmodule Exp do
     end
 
     @doc ~S"""
-    Parser that matches whitespace.
+    Lexical Parser that matches whitespace.
 
     ## Example
     iex> import Exp.Parser
     iex> space().(" abc")
-    [{" ", "abc"}]
+    [{[" "], "abc"}]
+    iex> space().("   abc")
+    [{[" ", " ", " "], "abc"}]
     """
     def space() do
-      sat(&is_space/1)
+      many(sat(&is_space/1))
     end
 
     defp is_space(c) do
@@ -311,9 +313,27 @@ defmodule Exp do
         "\t" ->
           true
 
+        "\n" ->
+          true
+
+        "\r" ->
+          true
+
         _ ->
           false
       end
+    end
+
+    @doc ~S"""
+    Lexical Parser that matches parser `p` followed by whitespace.
+
+    ## Example
+    iex> import Exp.Parser
+    iex> token(string("abc")).("abc\n")
+    [{"abc", ""}]
+    """
+    def token(p) do
+      p ~>> fn a -> space() ~>> fn _ -> return(a) end end
     end
   end
 end
